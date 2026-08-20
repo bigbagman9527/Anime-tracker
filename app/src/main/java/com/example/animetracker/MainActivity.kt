@@ -377,8 +377,8 @@ fun AnimeDetailScreen(viewModel: AnimeViewModel, animeId: Long) {
 @Composable
 fun NovelTab(novelViewModel: NovelViewModel) {
     val selectedNovelId by novelViewModel.selectedNovelId.collectAsState()
-
-    if (selectedNovelId == null) {
+    val novelId = selectedNovelId
+    if (novelId == null) {
         var novelTabIndex by remember { mutableStateOf(0) }
         val tabs = listOf("小说列表", "添加小说")
         Column(modifier = Modifier.fillMaxSize()) {
@@ -397,7 +397,7 @@ fun NovelTab(novelViewModel: NovelViewModel) {
             }
         }
     } else {
-        NovelDetailScreen(novelViewModel, selectedNovelId)
+        NovelDetailScreen(novelViewModel, novelId)
     }
 }
 
