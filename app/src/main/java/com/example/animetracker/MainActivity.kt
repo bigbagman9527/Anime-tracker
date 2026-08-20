@@ -5,21 +5,24 @@ package com.example.animetracker
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.clickable
-import androidx.compose.ui.graphics.Color
 import com.example.animetracker.data.local.AnimeEntry
 import com.example.animetracker.data.local.AnimeProgress
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -45,7 +48,6 @@ fun MainScreen(viewModel: AnimeViewModel) {
     val selectedAnimeId by viewModel.selectedAnimeId.collectAsState()
 
     if (selectedAnimeId == null) {
-        // 显示主标签页
         var selectedTab by remember { mutableStateOf(0) }
         val tabs = listOf("添加番剧", "我的番剧")
 
@@ -65,7 +67,6 @@ fun MainScreen(viewModel: AnimeViewModel) {
             }
         }
     } else {
-        // 显示详情页
         AnimeDetailScreen(viewModel, selectedAnimeId)
     }
 }
@@ -127,7 +128,6 @@ fun AddAnimeTab(viewModel: AnimeViewModel) {
             singleLine = true
         )
 
-        // 状态选择
         val statusOptions = listOf(
             "watching" to "在看",
             "completed" to "看完",
@@ -245,7 +245,6 @@ fun AnimeDetailScreen(viewModel: AnimeViewModel, animeId: Long) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // 返回按钮
         TextButton(onClick = { viewModel.clearSelection() }) {
             Text("返回列表")
         }
@@ -322,8 +321,3 @@ fun AnimeDetailScreen(viewModel: AnimeViewModel, animeId: Long) {
         }
     }
 }
-
-// 需要导入的日期格式化类
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
