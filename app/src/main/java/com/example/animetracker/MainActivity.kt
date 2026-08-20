@@ -78,8 +78,9 @@ fun MainScreen(animeViewModel: AnimeViewModel, novelViewModel: NovelViewModel) {
 @Composable
 fun AnimeSection(viewModel: AnimeViewModel) {
     val selectedAnimeId by viewModel.selectedAnimeId.collectAsState()
-    if (selectedAnimeId != null) {
-        AnimeDetailScreen(viewModel, selectedAnimeId)
+    val animeId = selectedAnimeId
+    if (animeId != null) {
+        AnimeDetailScreen(viewModel, animeId)
         return
     }
     var subTab by remember { mutableStateOf(0) }
@@ -100,8 +101,9 @@ fun AnimeSection(viewModel: AnimeViewModel) {
 @Composable
 fun NovelSection(viewModel: NovelViewModel) {
     val selectedNovelId by viewModel.selectedNovelId.collectAsState()
-    if (selectedNovelId != null) {
-        NovelDetailScreen(viewModel, selectedNovelId)
+    val novelId = selectedNovelId
+    if (novelId != null) {
+        NovelDetailScreen(viewModel, novelId)
         return
     }
     var subTab by remember { mutableStateOf(0) }
