@@ -47,7 +47,8 @@ class MainActivity : ComponentActivity() {
 fun MainScreen(viewModel: AnimeViewModel) {
     val selectedAnimeId by viewModel.selectedAnimeId.collectAsState()
 
-    if (selectedAnimeId == null) {
+    val animeId = selectedAnimeId
+    if (animeId == null) {
         var selectedTab by remember { mutableStateOf(0) }
         val tabs = listOf("添加番剧", "我的番剧")
 
@@ -67,7 +68,7 @@ fun MainScreen(viewModel: AnimeViewModel) {
             }
         }
     } else {
-        AnimeDetailScreen(viewModel, selectedAnimeId)
+        AnimeDetailScreen(viewModel, animeId)
     }
 }
 
