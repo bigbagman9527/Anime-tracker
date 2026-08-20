@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.Flow
 interface AnimeDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertAnime(anime: AnimeEntry)
+    suspend fun insertAnime(anime: AnimeEntry): Long
 
     @Insert
     suspend fun insertProgress(progress: AnimeProgress)
