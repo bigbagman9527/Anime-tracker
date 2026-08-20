@@ -19,6 +19,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.graphics.Color
 import com.example.animetracker.data.local.AnimeEntry
+import com.example.animetracker.data.local.AnimeProgress
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,23 +42,31 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainScreen(viewModel: AnimeViewModel) {
-    var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("添加番剧", "我的番剧")
+    val selectedAnimeId by viewModel.selectedAnimeId.collectAsState()
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        TabRow(selectedTabIndex = selectedTab) {
-            tabs.forEachIndexed { index, title ->
-                Tab(
-                    selected = selectedTab == index,
-                    onClick = { selectedTab = index },
-                    text = { Text(title) }
-                )
+    if (selectedAnimeId == null) {
+        // 显示主标签页
+        var selectedTab by remember { mutableStateOf(0) }
+        val tabs = listOf("添加番剧", "我的番剧")
+
+        Column(modifier = Modifier.fillMaxSize()) {
+            TabRow(selectedTabIndex = selectedTab) {
+                tabs.forEachIndexed { index, title ->
+                    Tab(
+                        selected = selectedTab == index,
+                        onClick = { selectedTab = index },
+                        text = { Text(title) }
+                    )
+                }
+            }
+            when (selectedTab) {
+                0 -> AddAnimeTab(viewModel)
+                1 -> AnimeListTab(viewModel)
             }
         }
-        when (selectedTab) {
-            0 -> AddAnimeTab(viewModel)
-            1 -> AnimeListTab(viewModel)
-        }
+    } else {
+        // 显示详情页
+        AnimeDetailScreen(viewModel, selectedAnimeId)
     }
 }
 
@@ -68,7 +77,6 @@ fun AddAnimeTab(viewModel: AnimeViewModel) {
 
     LaunchedEffect(saveSuccess) {
         if (saveSuccess) {
-            // 可以显示一个提示，这里简单重置
             viewModel.resetSaveSuccess()
         }
     }
@@ -197,6 +205,7 @@ fun AnimeListItem(anime: AnimeEntry, viewModel: AnimeViewModel) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable { viewModel.selectAnime(anime.id) }
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -221,3 +230,100 @@ fun AnimeListItem(anime: AnimeEntry, viewModel: AnimeViewModel) {
         }
     }
 }
+
+@Composable
+fun AnimeDetailScreen(viewModel: AnimeViewModel, animeId: Long) {
+    val animeEntry by viewModel.getAnimeFlow(animeId).collectAsState(initial = null)
+    val progressHistory by viewModel.getProgressFlow(animeId).collectAsState(initial = emptyList())
+
+    val progressEpisode = remember { mutableStateOf("") }
+    val progressNote = remember { mutableStateOf("") }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // 返回按钮
+        TextButton(onClick = { viewModel.clearSelection() }) {
+            Text("返回列表")
+        }
+
+        animeEntry?.let { entry ->
+            Text(entry.nameCn ?: entry.name, style = MaterialTheme.typography.headlineMedium)
+            if (entry.nameCn != null && entry.name != entry.nameCn) {
+                Text(entry.name, style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+            }
+
+            Text("状态：${when (entry.status) {
+                "watching" -> "在看"
+                "completed" -> "看完"
+                "on_hold" -> "搁置"
+                "dropped" -> "弃番"
+                else -> "想看"
+            }}")
+            entry.episodes?.let { Text("总集数：$it") }
+            entry.summary?.let { Text(it) }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            Text("历史进度", style = MaterialTheme.typography.titleMedium)
+            if (progressHistory.isEmpty()) {
+                Text("还没有进度记录")
+            } else {
+                progressHistory.forEach { progress ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("第 ${progress.episode} 集")
+                        Text(
+                            text = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+                                .format(Date(progress.watchedDate))
+                        )
+                        progress.note?.let { Text(it, color = Color.Gray) }
+                    }
+                }
+            }
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            Text("更新进度", style = MaterialTheme.typography.titleMedium)
+            OutlinedTextField(
+                value = progressEpisode.value,
+                onValueChange = { progressEpisode.value = it },
+                label = { Text("看到第几集") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+            )
+            OutlinedTextField(
+                value = progressNote.value,
+                onValueChange = { progressNote.value = it },
+                label = { Text("备注（可选）") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+            Button(
+                onClick = {
+                    val ep = progressEpisode.value.toIntOrNull()
+                    if (ep != null && ep > 0) {
+                        viewModel.addProgress(animeId, ep, progressNote.value)
+                        progressEpisode.value = ""
+                        progressNote.value = ""
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = progressEpisode.value.isNotBlank()
+            ) {
+                Text("保存进度")
+            }
+        }
+    }
+}
+
+// 需要导入的日期格式化类
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale

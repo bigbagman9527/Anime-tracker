@@ -33,6 +33,10 @@ class AnimeViewModel(
     private val _saveSuccess = MutableStateFlow(false)
     val saveSuccess: StateFlow<Boolean> = _saveSuccess
 
+    // 当前选中的番剧 ID，用于详情页
+    private val _selectedAnimeId = MutableStateFlow<Long?>(null)
+    val selectedAnimeId: StateFlow<Long?> = _selectedAnimeId
+
     fun updateName(value: String) { _formState.update { it.copy(name = value) } }
     fun updateNameCn(value: String) { _formState.update { it.copy(nameCn = value) } }
     fun updateTotalEpisodes(value: String) { _formState.update { it.copy(totalEpisodes = value) } }
@@ -71,6 +75,32 @@ class AnimeViewModel(
 
     fun resetSaveSuccess() { _saveSuccess.value = false }
 
-    // 公开方法，供 UI 获取最新进度
+    // 选择某个番剧，跳转详情
+    fun selectAnime(id: Long) { _selectedAnimeId.value = id }
+    fun clearSelection() { _selectedAnimeId.value = null }
+
+    // 获取单个番剧的 Flow（用于详情页）
+    fun getAnimeFlow(id: Long): Flow<AnimeEntry?> = flow {
+        emit(repository.getAnimeById(id))
+    }
+
+    // 获取进度历史 Flow
+    fun getProgressFlow(animeId: Long): Flow<List<AnimeProgress>> =
+        repository.getProgressForAnime(animeId)
+
+    // 添加进度记录
+    fun addProgress(animeId: Long, episode: Int, note: String?) {
+        viewModelScope.launch {
+            repository.addProgress(
+                AnimeProgress(
+                    animeId = animeId,
+                    episode = episode,
+                    watchedDate = System.currentTimeMillis(),
+                    note = note?.trim()?.ifBlank { null }
+                )
+            )
+        }
+    }
+
     suspend fun getLatestProgressForAnime(animeId: Long) = repository.getLatestProgress(animeId)
 }
