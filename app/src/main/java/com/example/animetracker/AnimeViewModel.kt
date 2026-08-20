@@ -33,24 +33,12 @@ class AnimeViewModel(
     private val _saveSuccess = MutableStateFlow(false)
     val saveSuccess: StateFlow<Boolean> = _saveSuccess
 
-    fun updateName(value: String) {
-        _formState.update { it.copy(name = value) }
-    }
-    fun updateNameCn(value: String) {
-        _formState.update { it.copy(nameCn = value) }
-    }
-    fun updateTotalEpisodes(value: String) {
-        _formState.update { it.copy(totalEpisodes = value) }
-    }
-    fun updateCurrentEpisode(value: String) {
-        _formState.update { it.copy(currentEpisode = value) }
-    }
-    fun updateStatus(value: String) {
-        _formState.update { it.copy(status = value) }
-    }
-    fun updateNote(value: String) {
-        _formState.update { it.copy(note = value) }
-    }
+    fun updateName(value: String) { _formState.update { it.copy(name = value) } }
+    fun updateNameCn(value: String) { _formState.update { it.copy(nameCn = value) } }
+    fun updateTotalEpisodes(value: String) { _formState.update { it.copy(totalEpisodes = value) } }
+    fun updateCurrentEpisode(value: String) { _formState.update { it.copy(currentEpisode = value) } }
+    fun updateStatus(value: String) { _formState.update { it.copy(status = value) } }
+    fun updateNote(value: String) { _formState.update { it.copy(note = value) } }
 
     fun saveAnime() {
         val form = _formState.value
@@ -81,7 +69,8 @@ class AnimeViewModel(
         }
     }
 
-    fun resetSaveSuccess() {
-        _saveSuccess.value = false
-    }
+    fun resetSaveSuccess() { _saveSuccess.value = false }
+
+    // 公开方法，供 UI 获取最新进度
+    suspend fun getLatestProgressForAnime(animeId: Long) = repository.getLatestProgress(animeId)
 }

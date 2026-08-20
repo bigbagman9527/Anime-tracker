@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package com.example.animetracker
 
 import android.os.Bundle
@@ -14,11 +16,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.graphics.Color
-import androidx.compose.foundation.Image
-import coil.compose.AsyncImage
 import com.example.animetracker.data.local.AnimeEntry
 
 class MainActivity : ComponentActivity() {
@@ -121,7 +120,13 @@ fun AddAnimeTab(viewModel: AnimeViewModel) {
         )
 
         // 状态选择
-        val statusOptions = listOf("watching" to "在看", "completed" to "看完", "on_hold" to "搁置", "dropped" to "弃番", "plan_to_watch" to "想看")
+        val statusOptions = listOf(
+            "watching" to "在看",
+            "completed" to "看完",
+            "on_hold" to "搁置",
+            "dropped" to "弃番",
+            "plan_to_watch" to "想看"
+        )
         var statusExpanded by remember { mutableStateOf(false) }
         ExposedDropdownMenuBox(
             expanded = statusExpanded,
@@ -186,8 +191,7 @@ fun AnimeListTab(viewModel: AnimeViewModel) {
 fun AnimeListItem(anime: AnimeEntry, viewModel: AnimeViewModel) {
     var latestEp by remember { mutableStateOf<Int?>(null) }
     LaunchedEffect(anime.id) {
-        val progress = viewModel.repository.getLatestProgress(anime.id)
-        latestEp = progress?.episode
+        latestEp = viewModel.getLatestProgressForAnime(anime.id)?.episode
     }
 
     Row(
