@@ -24,6 +24,6 @@ interface AnimeDao {
     @Query("SELECT * FROM anime_progress WHERE animeId = :animeId ORDER BY watchedDate DESC LIMIT 1")
     suspend fun getLatestProgress(animeId: Long): AnimeProgress?
 
-    @Query("DELETE FROM anime_entries WHERE id = :id")
-    suspend fun deleteAnime(id: Long)
+    @Delete
+    suspend fun deleteAnime(anime: AnimeEntry)
 }
