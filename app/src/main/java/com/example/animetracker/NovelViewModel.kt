@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.animetracker.data.NovelRepository
 import com.example.animetracker.data.local.NovelEntry
 import com.example.animetracker.data.local.NovelProgress
+import com.example.animetracker.data.remote.DoubanBookItem
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -15,6 +16,13 @@ data class NovelFormState(
     val currentChapter: String = "",
     val status: String = "reading",
     val note: String = ""
+)
+
+data class NovelSearchState(
+    val keyword: String = "",
+    val results: List<DoubanBookItem> = emptyList(),
+    val isLoading: Boolean = false,
+    val error: String? = null
 )
 
 class NovelViewModel(
@@ -33,6 +41,9 @@ class NovelViewModel(
     private val _saveSuccess = MutableStateFlow(false)
     val saveSuccess: StateFlow<Boolean> = _saveSuccess
 
+    private val _searchState = MutableStateFlow(NovelSearchState())
+    val searchState: StateFlow<NovelSearchState> = _searchState
+
     private val _selectedNovelId = MutableStateFlow<Long?>(null)
     val selectedNovelId: StateFlow<Long?> = _selectedNovelId
 
@@ -42,6 +53,35 @@ class NovelViewModel(
     fun updateCurrentChapter(value: String) { _formState.update { it.copy(currentChapter = value) } }
     fun updateStatus(value: String) { _formState.update { it.copy(status = value) } }
     fun updateNote(value: String) { _formState.update { it.copy(note = value) } }
+
+    fun updateSearchKeyword(value: String) { _searchState.update { it.copy(keyword = value, error = null) } }
+
+    fun searchDouban() {
+        val keyword = _searchState.value.keyword.trim()
+        if (keyword.isBlank()) return
+        viewModelScope.launch {
+            _searchState.update { it.copy(isLoading = true, error = null) }
+            try {
+                val results = repository.searchDoubanBooks(keyword)
+                _searchState.update { it.copy(isLoading = false, results = results) }
+            } catch (e: Exception) {
+                _searchState.update { it.copy(isLoading = false, error = "搜索失败：${e.message}") }
+            }
+        }
+    }
+
+    fun fillFormFromSearch(item: DoubanBookItem) {
+        _formState.update {
+            it.copy(
+                title = item.title,
+                author = item.author?.joinToString(" / ") ?: "",
+                // 豆瓣结果没有章节数，保持用户当前填写的总章节数不变
+                totalChapters = it.totalChapters,
+                status = it.status
+            )
+        }
+        _searchState.update { it.copy(results = emptyList(), keyword = "") }
+    }
 
     fun saveNovel() {
         val form = _formState.value

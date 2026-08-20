@@ -3,11 +3,15 @@ package com.example.animetracker.data
 import com.example.animetracker.data.local.NovelDao
 import com.example.animetracker.data.local.NovelEntry
 import com.example.animetracker.data.local.NovelProgress
+import com.example.animetracker.data.remote.DoubanBookApi
 import kotlinx.coroutines.flow.Flow
 
 class NovelRepository(
-    private val dao: NovelDao
+    private val dao: NovelDao,
+    private val doubanBookApi: DoubanBookApi
 ) {
+    suspend fun searchDoubanBooks(keyword: String) = doubanBookApi.searchBooks(keyword)
+
     suspend fun saveNovel(novel: NovelEntry): Long = dao.insertNovel(novel)
 
     suspend fun addProgress(progress: NovelProgress) = dao.insertProgress(progress)

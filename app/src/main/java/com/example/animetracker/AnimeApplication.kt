@@ -21,7 +21,11 @@ class AnimeApplication : Application() {
         ).fallbackToDestructiveMigration()
          .build()
 
-        animeRepository = AnimeRepository(NetworkModule.bangumiApi, database.animeDao())
-        novelRepository = NovelRepository(database.novelDao())
+        animeRepository = AnimeRepository(
+            NetworkModule.bangumiApi,
+            NetworkModule.biliApi,
+            database.animeDao()
+        )
+        novelRepository = NovelRepository(database.novelDao(), NetworkModule.doubanBookApi)
     }
 }

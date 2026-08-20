@@ -25,6 +25,7 @@ import com.example.animetracker.data.local.NovelProgress
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import coil.compose.AsyncImage
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -54,37 +55,79 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainScreen(animeViewModel: AnimeViewModel, novelViewModel: NovelViewModel) {
-    var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("添加番剧", "我的番剧", "小说")
+    var selectedMainTab by remember { mutableStateOf(0) }
+    val mainTabs = listOf("番剧", "小说")
 
     Column(modifier = Modifier.fillMaxSize()) {
-        TabRow(selectedTabIndex = selectedTab) {
-            tabs.forEachIndexed { index, title ->
+        TabRow(selectedTabIndex = selectedMainTab) {
+            mainTabs.forEachIndexed { index, title ->
                 Tab(
-                    selected = selectedTab == index,
-                    onClick = { selectedTab = index },
+                    selected = selectedMainTab == index,
+                    onClick = { selectedMainTab = index },
                     text = { Text(title) }
                 )
             }
         }
-        when (selectedTab) {
-            0 -> AddAnimeTab(animeViewModel)
-            1 -> AnimeListTab(animeViewModel)
-            2 -> NovelTab(novelViewModel)
+        when (selectedMainTab) {
+            0 -> AnimeSection(animeViewModel)
+            1 -> NovelSection(novelViewModel)
         }
     }
 }
 
-// ========== 番剧相关 ==========
+@Composable
+fun AnimeSection(viewModel: AnimeViewModel) {
+    val selectedAnimeId by viewModel.selectedAnimeId.collectAsState()
+    if (selectedAnimeId != null) {
+        AnimeDetailScreen(viewModel, selectedAnimeId)
+        return
+    }
+    var subTab by remember { mutableStateOf(0) }
+    val tabs = listOf("列表", "添加")
+    Column(modifier = Modifier.fillMaxSize()) {
+        TabRow(selectedTabIndex = subTab) {
+            tabs.forEachIndexed { index, title ->
+                Tab(selected = subTab == index, onClick = { subTab = index }, text = { Text(title) })
+            }
+        }
+        when (subTab) {
+            0 -> AnimeListTab(viewModel)
+            1 -> AddAnimeTab(viewModel)
+        }
+    }
+}
+
+@Composable
+fun NovelSection(viewModel: NovelViewModel) {
+    val selectedNovelId by viewModel.selectedNovelId.collectAsState()
+    if (selectedNovelId != null) {
+        NovelDetailScreen(viewModel, selectedNovelId)
+        return
+    }
+    var subTab by remember { mutableStateOf(0) }
+    val tabs = listOf("列表", "添加")
+    Column(modifier = Modifier.fillMaxSize()) {
+        TabRow(selectedTabIndex = subTab) {
+            tabs.forEachIndexed { index, title ->
+                Tab(selected = subTab == index, onClick = { subTab = index }, text = { Text(title) })
+            }
+        }
+        when (subTab) {
+            0 -> NovelListTab(viewModel)
+            1 -> AddNovelTab(viewModel)
+        }
+    }
+}
+
+// ==================== 番剧添加（含搜索） ====================
 @Composable
 fun AddAnimeTab(viewModel: AnimeViewModel) {
     val formState by viewModel.formState.collectAsState()
     val saveSuccess by viewModel.saveSuccess.collectAsState()
+    val searchState by viewModel.searchState.collectAsState()
 
     LaunchedEffect(saveSuccess) {
-        if (saveSuccess) {
-            viewModel.resetSaveSuccess()
-        }
+        if (saveSuccess) viewModel.resetSaveSuccess()
     }
 
     Column(
@@ -93,8 +136,58 @@ fun AddAnimeTab(viewModel: AnimeViewModel) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text("手动添加番剧", style = MaterialTheme.typography.headlineSmall)
+        Text("添加番剧（可先搜索）", style = MaterialTheme.typography.headlineSmall)
 
+        // 搜索区域
+        OutlinedTextField(
+            value = searchState.keyword,
+            onValueChange = viewModel::updateSearchKeyword,
+            label = { Text("输入番剧名称关键词") },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true
+        )
+        Button(
+            onClick = { viewModel.searchBili() },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = searchState.keyword.isNotBlank() && !searchState.isLoading
+        ) {
+            if (searchState.isLoading) Text("搜索中...") else Text("搜索匹配")
+        }
+
+        if (searchState.error != null) {
+            Text(searchState.error!!, color = MaterialTheme.colorScheme.error)
+        }
+
+        if (searchState.results.isNotEmpty()) {
+            LazyColumn(modifier = Modifier.height(200.dp)) {
+                items(searchState.results) { item ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.fillFormFromSearch(item) }
+                            .padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (!item.cover.isNullOrBlank()) {
+                            AsyncImage(
+                                model = item.cover,
+                                contentDescription = item.title,
+                                modifier = Modifier.size(40.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Column {
+                            Text(item.title, style = MaterialTheme.typography.bodyLarge)
+                            item.styles?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Color.Gray) }
+                        }
+                    }
+                }
+            }
+        }
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        // 表单字段
         OutlinedTextField(
             value = formState.name,
             onValueChange = viewModel::updateName,
@@ -133,6 +226,7 @@ fun AddAnimeTab(viewModel: AnimeViewModel) {
             singleLine = true
         )
 
+        // 状态选择
         val statusOptions = listOf(
             "watching" to "在看",
             "completed" to "看完",
@@ -141,10 +235,7 @@ fun AddAnimeTab(viewModel: AnimeViewModel) {
             "plan_to_watch" to "想看"
         )
         var statusExpanded by remember { mutableStateOf(false) }
-        ExposedDropdownMenuBox(
-            expanded = statusExpanded,
-            onExpandedChange = { statusExpanded = it }
-        ) {
+        ExposedDropdownMenuBox(expanded = statusExpanded, onExpandedChange = { statusExpanded = it }) {
             OutlinedTextField(
                 value = statusOptions.find { it.first == formState.status }?.second ?: "在看",
                 onValueChange = {},
@@ -153,17 +244,11 @@ fun AddAnimeTab(viewModel: AnimeViewModel) {
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = statusExpanded) },
                 modifier = Modifier.fillMaxWidth()
             )
-            ExposedDropdownMenu(
-                expanded = statusExpanded,
-                onDismissRequest = { statusExpanded = false }
-            ) {
+            ExposedDropdownMenu(expanded = statusExpanded, onDismissRequest = { statusExpanded = false }) {
                 statusOptions.forEach { (value, label) ->
                     DropdownMenuItem(
                         text = { Text(label) },
-                        onClick = {
-                            viewModel.updateStatus(value)
-                            statusExpanded = false
-                        }
+                        onClick = { viewModel.updateStatus(value); statusExpanded = false }
                     )
                 }
             }
@@ -173,24 +258,18 @@ fun AddAnimeTab(viewModel: AnimeViewModel) {
             onClick = { viewModel.saveAnime() },
             modifier = Modifier.fillMaxWidth(),
             enabled = formState.name.isNotBlank()
-        ) {
-            Text("保存")
-        }
+        ) { Text("保存番剧") }
 
-        if (saveSuccess) {
-            Text("保存成功！", color = Color(0xFF4CAF50))
-        }
+        if (saveSuccess) Text("保存成功！", color = Color(0xFF4CAF50))
     }
 }
 
+// ==================== 番剧列表 ====================
 @Composable
 fun AnimeListTab(viewModel: AnimeViewModel) {
     val animeList by viewModel.allAnime.collectAsState()
-
     if (animeList.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("还没有添加任何番剧")
-        }
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("还没有添加任何番剧，点击“添加”开始记录") }
     } else {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             items(animeList, key = { it.id }) { anime ->
@@ -203,10 +282,7 @@ fun AnimeListTab(viewModel: AnimeViewModel) {
 @Composable
 fun AnimeListItem(anime: AnimeEntry, viewModel: AnimeViewModel) {
     var latestEp by remember { mutableStateOf<Int?>(null) }
-    LaunchedEffect(anime.id) {
-        latestEp = viewModel.getLatestProgressForAnime(anime.id)?.episode
-    }
-
+    LaunchedEffect(anime.id) { latestEp = viewModel.getLatestProgressForAnime(anime.id)?.episode }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -220,7 +296,7 @@ fun AnimeListItem(anime: AnimeEntry, viewModel: AnimeViewModel) {
                 Text(anime.name, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
             }
             Text(
-                text = when (anime.status) {
+                when (anime.status) {
                     "watching" -> "在看"
                     "completed" -> "看完"
                     "on_hold" -> "搁置"
@@ -229,298 +305,170 @@ fun AnimeListItem(anime: AnimeEntry, viewModel: AnimeViewModel) {
                 },
                 style = MaterialTheme.typography.bodySmall
             )
-            if (latestEp != null) {
-                Text("看到第 $latestEp 集", style = MaterialTheme.typography.bodySmall)
-            }
+            if (latestEp != null) Text("看到第 $latestEp 集", style = MaterialTheme.typography.bodySmall)
+            Text("点击进入详情 →", style = MaterialTheme.typography.bodySmall, color = Color.Blue)
         }
     }
 }
 
+// ==================== 番剧详情（保留原有功能） ====================
 @Composable
 fun AnimeDetailScreen(viewModel: AnimeViewModel, animeId: Long) {
     val animeEntry by viewModel.getAnimeFlow(animeId).collectAsState(initial = null)
     val progressHistory by viewModel.getProgressFlow(animeId).collectAsState(initial = emptyList())
-
     val progressEpisode = remember { mutableStateOf("") }
     val progressNote = remember { mutableStateOf("") }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        TextButton(onClick = { viewModel.clearSelection() }) {
-            Text("返回列表")
-        }
-
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        TextButton(onClick = { viewModel.clearSelection() }) { Text("返回列表") }
         animeEntry?.let { entry ->
             Text(entry.nameCn ?: entry.name, style = MaterialTheme.typography.headlineMedium)
-            if (entry.nameCn != null && entry.name != entry.nameCn) {
-                Text(entry.name, style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
-            }
-
-            Text("状态：${when (entry.status) {
-                "watching" -> "在看"
-                "completed" -> "看完"
-                "on_hold" -> "搁置"
-                "dropped" -> "弃番"
-                else -> "想看"
-            }}")
+            if (entry.nameCn != null && entry.name != entry.nameCn) Text(entry.name, color = Color.Gray)
+            Text("状态：${when(entry.status) { "watching" -> "在看"; "completed" -> "看完"; "on_hold" -> "搁置"; "dropped" -> "弃番"; else -> "想看" }}")
             entry.episodes?.let { Text("总集数：$it") }
             entry.summary?.let { Text(it) }
 
-            // 状态修改下拉框
-            val statusOptions = listOf(
-                "watching" to "在看",
-                "completed" to "看完",
-                "on_hold" to "搁置",
-                "dropped" to "弃番",
-                "plan_to_watch" to "想看"
-            )
+            // 状态修改
+            val statusOptions = listOf("watching" to "在看", "completed" to "看完", "on_hold" to "搁置", "dropped" to "弃番", "plan_to_watch" to "想看")
             var statusExpanded by remember { mutableStateOf(false) }
-            ExposedDropdownMenuBox(
-                expanded = statusExpanded,
-                onExpandedChange = { statusExpanded = it }
-            ) {
+            ExposedDropdownMenuBox(expanded = statusExpanded, onExpandedChange = { statusExpanded = it }) {
                 OutlinedTextField(
                     value = statusOptions.find { it.first == entry.status }?.second ?: "在看",
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("修改状态") },
+                    onValueChange = {}, readOnly = true, label = { Text("修改状态") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = statusExpanded) },
                     modifier = Modifier.fillMaxWidth()
                 )
-                ExposedDropdownMenu(
-                    expanded = statusExpanded,
-                    onDismissRequest = { statusExpanded = false }
-                ) {
+                ExposedDropdownMenu(expanded = statusExpanded, onDismissRequest = { statusExpanded = false }) {
                     statusOptions.forEach { (value, label) ->
-                        DropdownMenuItem(
-                            text = { Text(label) },
-                            onClick = {
-                                viewModel.updateAnimeStatus(entry, value)
-                                statusExpanded = false
-                            }
-                        )
+                        DropdownMenuItem(text = { Text(label) }, onClick = { viewModel.updateAnimeStatus(entry, value); statusExpanded = false })
                     }
                 }
             }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
             Text("历史进度", style = MaterialTheme.typography.titleMedium)
-            if (progressHistory.isEmpty()) {
-                Text("还没有进度记录")
-            } else {
+            if (progressHistory.isEmpty()) Text("还没有进度记录") else {
                 progressHistory.forEach { progress ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("第 ${progress.episode} 集")
-                        Text(
-                            text = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-                                .format(Date(progress.watchedDate))
-                        )
+                        Text(SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(progress.watchedDate)))
                         progress.note?.let { Text(it, color = Color.Gray) }
                     }
                 }
             }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
             Text("更新进度", style = MaterialTheme.typography.titleMedium)
-            OutlinedTextField(
-                value = progressEpisode.value,
-                onValueChange = { progressEpisode.value = it },
-                label = { Text("看到第几集") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-            )
-            OutlinedTextField(
-                value = progressNote.value,
-                onValueChange = { progressNote.value = it },
-                label = { Text("备注（可选）") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-            Button(
-                onClick = {
-                    val ep = progressEpisode.value.toIntOrNull()
-                    if (ep != null && ep > 0) {
-                        viewModel.addProgress(animeId, ep, progressNote.value)
-                        progressEpisode.value = ""
-                        progressNote.value = ""
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = progressEpisode.value.isNotBlank()
-            ) {
-                Text("保存进度")
-            }
+            OutlinedTextField(value = progressEpisode.value, onValueChange = { progressEpisode.value = it }, label = { Text("看到第几集") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+            OutlinedTextField(value = progressNote.value, onValueChange = { progressNote.value = it }, label = { Text("备注（可选）") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            Button(onClick = {
+                val ep = progressEpisode.value.toIntOrNull()
+                if (ep != null && ep > 0) {
+                    viewModel.addProgress(animeId, ep, progressNote.value)
+                    progressEpisode.value = ""; progressNote.value = ""
+                }
+            }, modifier = Modifier.fillMaxWidth(), enabled = progressEpisode.value.isNotBlank()) { Text("保存进度") }
 
             Spacer(modifier = Modifier.height(16.dp))
-            Button(
-                onClick = { viewModel.deleteAnime(entry) },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-            ) {
-                Text("删除此条目")
-            }
+            Button(onClick = { viewModel.deleteAnime(entry) }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("删除此条目") }
         }
     }
 }
 
-// ========== 小说相关 ==========
-@Composable
-fun NovelTab(novelViewModel: NovelViewModel) {
-    val selectedNovelId by novelViewModel.selectedNovelId.collectAsState()
-    val novelId = selectedNovelId
-    if (novelId == null) {
-        var novelTabIndex by remember { mutableStateOf(0) }
-        val tabs = listOf("小说列表", "添加小说")
-        Column(modifier = Modifier.fillMaxSize()) {
-            TabRow(selectedTabIndex = novelTabIndex) {
-                tabs.forEachIndexed { index, title ->
-                    Tab(
-                        selected = novelTabIndex == index,
-                        onClick = { novelTabIndex = index },
-                        text = { Text(title) }
-                    )
-                }
-            }
-            when (novelTabIndex) {
-                0 -> NovelListTab(novelViewModel)
-                1 -> AddNovelTab(novelViewModel)
-            }
-        }
-    } else {
-        NovelDetailScreen(novelViewModel, novelId)
-    }
-}
-
+// ==================== 小说部分（保持不变） ====================
 @Composable
 fun AddNovelTab(viewModel: NovelViewModel) {
     val formState by viewModel.formState.collectAsState()
     val saveSuccess by viewModel.saveSuccess.collectAsState()
+    val searchState by viewModel.searchState.collectAsState()
+    LaunchedEffect(saveSuccess) { if (saveSuccess) viewModel.resetSaveSuccess() }
 
-    LaunchedEffect(saveSuccess) {
-        if (saveSuccess) {
-            viewModel.resetSaveSuccess()
-        }
-    }
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("添加小说（可先搜索）", style = MaterialTheme.typography.headlineSmall)
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text("手动添加小说", style = MaterialTheme.typography.headlineSmall)
-
+        // 搜索区域
         OutlinedTextField(
-            value = formState.title,
-            onValueChange = viewModel::updateTitle,
-            label = { Text("书名（必填）") },
+            value = searchState.keyword,
+            onValueChange = viewModel::updateSearchKeyword,
+            label = { Text("输入书名关键词") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true
         )
-        OutlinedTextField(
-            value = formState.author,
-            onValueChange = viewModel::updateAuthor,
-            label = { Text("作者（可选）") },
+        Button(
+            onClick = { viewModel.searchDouban() },
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true
-        )
-        OutlinedTextField(
-            value = formState.totalChapters,
-            onValueChange = viewModel::updateTotalChapters,
-            label = { Text("总章节数（可选）") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-        )
-        OutlinedTextField(
-            value = formState.currentChapter,
-            onValueChange = viewModel::updateCurrentChapter,
-            label = { Text("当前读到第几章（可选）") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-        )
-        OutlinedTextField(
-            value = formState.note,
-            onValueChange = viewModel::updateNote,
-            label = { Text("备注（可选）") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true
-        )
-
-        val statusOptions = listOf(
-            "reading" to "在读",
-            "completed" to "读完",
-            "on_hold" to "搁置",
-            "dropped" to "弃书",
-            "plan_to_read" to "想读"
-        )
-        var statusExpanded by remember { mutableStateOf(false) }
-        ExposedDropdownMenuBox(
-            expanded = statusExpanded,
-            onExpandedChange = { statusExpanded = it }
+            enabled = searchState.keyword.isNotBlank() && !searchState.isLoading
         ) {
-            OutlinedTextField(
-                value = statusOptions.find { it.first == formState.status }?.second ?: "在读",
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("状态") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = statusExpanded) },
-                modifier = Modifier.fillMaxWidth()
-            )
-            ExposedDropdownMenu(
-                expanded = statusExpanded,
-                onDismissRequest = { statusExpanded = false }
-            ) {
-                statusOptions.forEach { (value, label) ->
-                    DropdownMenuItem(
-                        text = { Text(label) },
-                        onClick = {
-                            viewModel.updateStatus(value)
-                            statusExpanded = false
+            if (searchState.isLoading) Text("搜索中...") else Text("搜索匹配")
+        }
+
+        if (searchState.error != null) {
+            Text(searchState.error!!, color = MaterialTheme.colorScheme.error)
+        }
+
+        if (searchState.results.isNotEmpty()) {
+            LazyColumn(modifier = Modifier.height(200.dp)) {
+                items(searchState.results) { item ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.fillFormFromSearch(item) }
+                            .padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (!item.cover.isNullOrBlank()) {
+                            AsyncImage(
+                                model = item.cover,
+                                contentDescription = item.title,
+                                modifier = Modifier.size(40.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
                         }
-                    )
+                        Column {
+                            Text(item.title, style = MaterialTheme.typography.bodyLarge)
+                            item.author?.let { authors ->
+                                Text("作者：${authors.joinToString(", ")}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                            }
+                            item.publisher?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Color.Gray) }
+                        }
+                    }
                 }
             }
         }
 
-        Button(
-            onClick = { viewModel.saveNovel() },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = formState.title.isNotBlank()
-        ) {
-            Text("保存")
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        OutlinedTextField(value = formState.title, onValueChange = viewModel::updateTitle, label = { Text("书名（必填）") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        OutlinedTextField(value = formState.author, onValueChange = viewModel::updateAuthor, label = { Text("作者（可选）") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+        OutlinedTextField(value = formState.totalChapters, onValueChange = viewModel::updateTotalChapters, label = { Text("总章节数（可选）") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+        OutlinedTextField(value = formState.currentChapter, onValueChange = viewModel::updateCurrentChapter, label = { Text("当前读到第几章（可选）") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+        OutlinedTextField(value = formState.note, onValueChange = viewModel::updateNote, label = { Text("备注（可选）") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+
+        val statusOptions = listOf("reading" to "在读", "completed" to "读完", "on_hold" to "搁置", "dropped" to "弃书", "plan_to_read" to "想读")
+        var statusExpanded by remember { mutableStateOf(false) }
+        ExposedDropdownMenuBox(expanded = statusExpanded, onExpandedChange = { statusExpanded = it }) {
+            OutlinedTextField(value = statusOptions.find { it.first == formState.status }?.second ?: "在读", onValueChange = {}, readOnly = true, label = { Text("状态") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = statusExpanded) }, modifier = Modifier.fillMaxWidth())
+            ExposedDropdownMenu(expanded = statusExpanded, onDismissRequest = { statusExpanded = false }) {
+                statusOptions.forEach { (value, label) ->
+                    DropdownMenuItem(text = { Text(label) }, onClick = { viewModel.updateStatus(value); statusExpanded = false })
+                }
+            }
         }
 
-        if (saveSuccess) {
-            Text("保存成功！", color = Color(0xFF4CAF50))
-        }
+        Button(onClick = { viewModel.saveNovel() }, modifier = Modifier.fillMaxWidth(), enabled = formState.title.isNotBlank()) { Text("保存小说") }
+        if (saveSuccess) Text("保存成功！", color = Color(0xFF4CAF50))
     }
 }
+
 
 @Composable
 fun NovelListTab(viewModel: NovelViewModel) {
     val novelList by viewModel.allNovels.collectAsState()
-
     if (novelList.isEmpty()) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("还没有添加任何小说")
-        }
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("还没有添加任何小说") }
     } else {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
-            items(novelList, key = { it.id }) { novel ->
-                NovelListItem(novel, viewModel)
-            }
+            items(novelList, key = { it.id }) { novel -> NovelListItem(novel, viewModel) }
         }
     }
 }
@@ -528,35 +476,14 @@ fun NovelListTab(viewModel: NovelViewModel) {
 @Composable
 fun NovelListItem(novel: NovelEntry, viewModel: NovelViewModel) {
     var latestChapter by remember { mutableStateOf<Int?>(null) }
-    LaunchedEffect(novel.id) {
-        latestChapter = viewModel.getLatestProgress(novel.id)?.chapter
-    }
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { viewModel.selectNovel(novel.id) }
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    LaunchedEffect(novel.id) { latestChapter = viewModel.getLatestProgress(novel.id)?.chapter }
+    Row(modifier = Modifier.fillMaxWidth().clickable { viewModel.selectNovel(novel.id) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f)) {
             Text(novel.title, style = MaterialTheme.typography.titleMedium)
-            novel.author?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = Color.Gray)
-            }
-            Text(
-                text = when (novel.status) {
-                    "reading" -> "在读"
-                    "completed" -> "读完"
-                    "on_hold" -> "搁置"
-                    "dropped" -> "弃书"
-                    else -> "想读"
-                },
-                style = MaterialTheme.typography.bodySmall
-            )
-            if (latestChapter != null) {
-                Text("读到第 $latestChapter 章", style = MaterialTheme.typography.bodySmall)
-            }
+            novel.author?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Color.Gray) }
+            Text(when(novel.status) { "reading" -> "在读"; "completed" -> "读完"; "on_hold" -> "搁置"; "dropped" -> "弃书"; else -> "想读" }, style = MaterialTheme.typography.bodySmall)
+            if (latestChapter != null) Text("读到第 $latestChapter 章", style = MaterialTheme.typography.bodySmall)
+            Text("点击进入详情 →", style = MaterialTheme.typography.bodySmall, color = Color.Blue)
         }
     }
 }
@@ -565,134 +492,54 @@ fun NovelListItem(novel: NovelEntry, viewModel: NovelViewModel) {
 fun NovelDetailScreen(viewModel: NovelViewModel, novelId: Long) {
     val novelEntry by viewModel.getNovelFlow(novelId).collectAsState(initial = null)
     val progressHistory by viewModel.getProgressFlow(novelId).collectAsState(initial = emptyList())
-
     val progressChapter = remember { mutableStateOf("") }
     val progressNote = remember { mutableStateOf("") }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        TextButton(onClick = { viewModel.clearSelection() }) {
-            Text("返回列表")
-        }
-
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        TextButton(onClick = { viewModel.clearSelection() }) { Text("返回列表") }
         novelEntry?.let { entry ->
             Text(entry.title, style = MaterialTheme.typography.headlineMedium)
-            entry.author?.let {
-                Text(it, style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
-            }
-
-            Text("状态：${when (entry.status) {
-                "reading" -> "在读"
-                "completed" -> "读完"
-                "on_hold" -> "搁置"
-                "dropped" -> "弃书"
-                else -> "想读"
-            }}")
+            entry.author?.let { Text(it, color = Color.Gray) }
+            Text("状态：${when(entry.status) { "reading" -> "在读"; "completed" -> "读完"; "on_hold" -> "搁置"; "dropped" -> "弃书"; else -> "想读" }}")
             entry.totalChapters?.let { Text("总章节数：$it") }
 
-            // 状态修改下拉框
-            val statusOptions = listOf(
-                "reading" to "在读",
-                "completed" to "读完",
-                "on_hold" to "搁置",
-                "dropped" to "弃书",
-                "plan_to_read" to "想读"
-            )
+            val statusOptions = listOf("reading" to "在读", "completed" to "读完", "on_hold" to "搁置", "dropped" to "弃书", "plan_to_read" to "想读")
             var statusExpanded by remember { mutableStateOf(false) }
-            ExposedDropdownMenuBox(
-                expanded = statusExpanded,
-                onExpandedChange = { statusExpanded = it }
-            ) {
-                OutlinedTextField(
-                    value = statusOptions.find { it.first == entry.status }?.second ?: "在读",
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("修改状态") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = statusExpanded) },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                ExposedDropdownMenu(
-                    expanded = statusExpanded,
-                    onDismissRequest = { statusExpanded = false }
-                ) {
+            ExposedDropdownMenuBox(expanded = statusExpanded, onExpandedChange = { statusExpanded = it }) {
+                OutlinedTextField(value = statusOptions.find { it.first == entry.status }?.second ?: "在读", onValueChange = {}, readOnly = true, label = { Text("修改状态") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = statusExpanded) }, modifier = Modifier.fillMaxWidth())
+                ExposedDropdownMenu(expanded = statusExpanded, onDismissRequest = { statusExpanded = false }) {
                     statusOptions.forEach { (value, label) ->
-                        DropdownMenuItem(
-                            text = { Text(label) },
-                            onClick = {
-                                viewModel.updateNovelStatus(entry, value)
-                                statusExpanded = false
-                            }
-                        )
+                        DropdownMenuItem(text = { Text(label) }, onClick = { viewModel.updateNovelStatus(entry, value); statusExpanded = false })
                     }
                 }
             }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
             Text("历史进度", style = MaterialTheme.typography.titleMedium)
-            if (progressHistory.isEmpty()) {
-                Text("还没有进度记录")
-            } else {
+            if (progressHistory.isEmpty()) Text("还没有进度记录") else {
                 progressHistory.forEach { progress ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("第 ${progress.chapter} 章")
-                        Text(
-                            text = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
-                                .format(Date(progress.readDate))
-                        )
+                        Text(SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date(progress.readDate)))
                         progress.note?.let { Text(it, color = Color.Gray) }
                     }
                 }
             }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
             Text("更新进度", style = MaterialTheme.typography.titleMedium)
-            OutlinedTextField(
-                value = progressChapter.value,
-                onValueChange = { progressChapter.value = it },
-                label = { Text("读到第几章") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
-            )
-            OutlinedTextField(
-                value = progressNote.value,
-                onValueChange = { progressNote.value = it },
-                label = { Text("备注（可选）") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true
-            )
-            Button(
-                onClick = {
-                    val ch = progressChapter.value.toIntOrNull()
-                    if (ch != null && ch > 0) {
-                        viewModel.addProgress(novelId, ch, null, progressNote.value)
-                        progressChapter.value = ""
-                        progressNote.value = ""
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = progressChapter.value.isNotBlank()
-            ) {
-                Text("保存进度")
-            }
+            OutlinedTextField(value = progressChapter.value, onValueChange = { progressChapter.value = it }, label = { Text("读到第几章") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+            OutlinedTextField(value = progressNote.value, onValueChange = { progressNote.value = it }, label = { Text("备注（可选）") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+            Button(onClick = {
+                val ch = progressChapter.value.toIntOrNull()
+                if (ch != null && ch > 0) {
+                    viewModel.addProgress(novelId, ch, null, progressNote.value)
+                    progressChapter.value = ""; progressNote.value = ""
+                }
+            }, modifier = Modifier.fillMaxWidth(), enabled = progressChapter.value.isNotBlank()) { Text("保存进度") }
 
             Spacer(modifier = Modifier.height(16.dp))
-            Button(
-                onClick = { viewModel.deleteNovel(entry) },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-            ) {
-                Text("删除此条目")
-            }
+            Button(onClick = { viewModel.deleteNovel(entry) }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)) { Text("删除此条目") }
         }
     }
 }

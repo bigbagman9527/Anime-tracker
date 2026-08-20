@@ -4,24 +4,24 @@ import com.example.animetracker.data.local.AnimeDao
 import com.example.animetracker.data.local.AnimeEntry
 import com.example.animetracker.data.local.AnimeProgress
 import com.example.animetracker.data.remote.BangumiApi
+import com.example.animetracker.data.remote.BiliApi
 import com.example.animetracker.data.remote.SubjectDetail
 import kotlinx.coroutines.flow.Flow
 
 class AnimeRepository(
     private val api: BangumiApi,
+    private val biliApi: BiliApi,
     private val dao: AnimeDao
 ) {
     suspend fun searchAnime(keyword: String) = api.searchSubjects(keyword)
 
     suspend fun getAnimeDetail(id: Long): SubjectDetail = api.getSubjectDetail(id)
 
-    suspend fun saveAnime(anime: AnimeEntry): Long {
-        return dao.insertAnime(anime)
-    }
+    suspend fun searchBiliAnime(keyword: String) = biliApi.searchBangumi(keyword = keyword)
 
-    suspend fun addProgress(progress: AnimeProgress) {
-        dao.insertProgress(progress)
-    }
+    suspend fun saveAnime(anime: AnimeEntry): Long = dao.insertAnime(anime)
+
+    suspend fun addProgress(progress: AnimeProgress) = dao.insertProgress(progress)
 
     fun getAllAnime(): Flow<List<AnimeEntry>> = dao.getAllAnime()
 
