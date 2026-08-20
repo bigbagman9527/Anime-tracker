@@ -11,7 +11,7 @@ interface DoubanBookApi {
 data class DoubanBookItem(
     val id: Long,
     val title: String,
-    val author: List<String>?,
+    val author: String?,
     val cover: String?,
     val publisher: String?,
     val year: String?,

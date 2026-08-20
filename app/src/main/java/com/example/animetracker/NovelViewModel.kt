@@ -74,7 +74,7 @@ class NovelViewModel(
         _formState.update {
             it.copy(
                 title = item.title,
-                author = item.author?.joinToString(" / ") ?: "",
+                author = item.author ?: "",
                 // 豆瓣结果没有章节数，保持用户当前填写的总章节数不变
                 totalChapters = it.totalChapters,
                 status = it.status
