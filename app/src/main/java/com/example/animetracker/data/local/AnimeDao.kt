@@ -12,6 +12,12 @@ interface AnimeDao {
     @Insert
     suspend fun insertProgress(progress: AnimeProgress)
 
+    @Update
+    suspend fun updateAnime(anime: AnimeEntry)
+
+    @Delete
+    suspend fun deleteAnime(anime: AnimeEntry)
+
     @Query("SELECT * FROM anime_entries ORDER BY createdAt DESC")
     fun getAllAnime(): Flow<List<AnimeEntry>>
 
@@ -24,6 +30,6 @@ interface AnimeDao {
     @Query("SELECT * FROM anime_progress WHERE animeId = :animeId ORDER BY watchedDate DESC LIMIT 1")
     suspend fun getLatestProgress(animeId: Long): AnimeProgress?
 
-    @Delete
-    suspend fun deleteAnime(anime: AnimeEntry)
+    @Query("DELETE FROM anime_progress WHERE animeId = :animeId")
+    suspend fun deleteProgressForAnime(animeId: Long)
 }

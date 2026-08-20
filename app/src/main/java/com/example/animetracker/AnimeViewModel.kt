@@ -33,7 +33,6 @@ class AnimeViewModel(
     private val _saveSuccess = MutableStateFlow(false)
     val saveSuccess: StateFlow<Boolean> = _saveSuccess
 
-    // 当前选中的番剧 ID，用于详情页
     private val _selectedAnimeId = MutableStateFlow<Long?>(null)
     val selectedAnimeId: StateFlow<Long?> = _selectedAnimeId
 
@@ -75,20 +74,16 @@ class AnimeViewModel(
 
     fun resetSaveSuccess() { _saveSuccess.value = false }
 
-    // 选择某个番剧，跳转详情
     fun selectAnime(id: Long) { _selectedAnimeId.value = id }
     fun clearSelection() { _selectedAnimeId.value = null }
 
-    // 获取单个番剧的 Flow（用于详情页）
     fun getAnimeFlow(id: Long): Flow<AnimeEntry?> = flow {
         emit(repository.getAnimeById(id))
     }
 
-    // 获取进度历史 Flow
     fun getProgressFlow(animeId: Long): Flow<List<AnimeProgress>> =
         repository.getProgressForAnime(animeId)
 
-    // 添加进度记录
     fun addProgress(animeId: Long, episode: Int, note: String?) {
         viewModelScope.launch {
             repository.addProgress(
@@ -103,4 +98,19 @@ class AnimeViewModel(
     }
 
     suspend fun getLatestProgressForAnime(animeId: Long) = repository.getLatestProgress(animeId)
+
+    // 更新番剧状态
+    fun updateAnimeStatus(anime: AnimeEntry, newStatus: String) {
+        viewModelScope.launch {
+            repository.updateAnime(anime.copy(status = newStatus))
+        }
+    }
+
+    // 删除番剧
+    fun deleteAnime(anime: AnimeEntry) {
+        viewModelScope.launch {
+            repository.deleteAnime(anime)
+            _selectedAnimeId.value = null
+        }
+    }
 }

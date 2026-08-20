@@ -30,4 +30,11 @@ class AnimeRepository(
     fun getProgressForAnime(animeId: Long): Flow<List<AnimeProgress>> = dao.getProgressForAnime(animeId)
 
     suspend fun getLatestProgress(animeId: Long) = dao.getLatestProgress(animeId)
+
+    suspend fun updateAnime(anime: AnimeEntry) = dao.updateAnime(anime)
+
+    suspend fun deleteAnime(anime: AnimeEntry) {
+        dao.deleteProgressForAnime(anime.id)
+        dao.deleteAnime(anime)
+    }
 }

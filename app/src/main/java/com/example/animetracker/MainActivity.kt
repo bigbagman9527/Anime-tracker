@@ -266,6 +266,43 @@ fun AnimeDetailScreen(viewModel: AnimeViewModel, animeId: Long) {
             entry.episodes?.let { Text("总集数：$it") }
             entry.summary?.let { Text(it) }
 
+            // 状态修改下拉框
+            val statusOptions = listOf(
+                "watching" to "在看",
+                "completed" to "看完",
+                "on_hold" to "搁置",
+                "dropped" to "弃番",
+                "plan_to_watch" to "想看"
+            )
+            var statusExpanded by remember { mutableStateOf(false) }
+            ExposedDropdownMenuBox(
+                expanded = statusExpanded,
+                onExpandedChange = { statusExpanded = it }
+            ) {
+                OutlinedTextField(
+                    value = statusOptions.find { it.first == entry.status }?.second ?: "在看",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("修改状态") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = statusExpanded) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                ExposedDropdownMenu(
+                    expanded = statusExpanded,
+                    onDismissRequest = { statusExpanded = false }
+                ) {
+                    statusOptions.forEach { (value, label) ->
+                        DropdownMenuItem(
+                            text = { Text(label) },
+                            onClick = {
+                                viewModel.updateAnimeStatus(entry, value)
+                                statusExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
             Text("历史进度", style = MaterialTheme.typography.titleMedium)
@@ -318,6 +355,16 @@ fun AnimeDetailScreen(viewModel: AnimeViewModel, animeId: Long) {
                 enabled = progressEpisode.value.isNotBlank()
             ) {
                 Text("保存进度")
+            }
+
+            // 删除按钮
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = { viewModel.deleteAnime(entry) },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+            ) {
+                Text("删除此条目")
             }
         }
     }
