@@ -428,8 +428,8 @@ fun AddNovelTab(viewModel: NovelViewModel) {
                         }
                         Column {
                             Text(item.title, style = MaterialTheme.typography.bodyLarge)
-                            item.author?.let { authors ->
-                                Text("作者：${authors.joinToString(", ")}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                            item.author?.let { author ->
+                                Text("作者：$author", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
                             }
                             item.publisher?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Color.Gray) }
                         }
